@@ -1,0 +1,18 @@
+# Build artifacts
+.pio/
+
+# IDE (keep extensions.json for PlatformIO recommendation)
+.vscode/*
+!.vscode/extensions.json
+
+# Secrets — NEVER COMMIT
+src/secrets.h
+
+# OS junk
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# claude
+.claude
