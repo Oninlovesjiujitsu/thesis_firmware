@@ -5,11 +5,15 @@
 #include "telemetry.h"
 
 static const char PAYLOAD_FMT[] PROGMEM =
-    "{\"ph_level\":%.2f,\"turbidity\":%.2f,\"tank_level\":%.2f}";
+    "{\"ph\":%.2f,\"turbidity1\":%.2f,\"turbidity2\":%.2f,"
+    "\"tank1_full\":%s,\"state\":\"%s\",\"dose_attempts\":%u}";
 
-bool telemetry_publish(float ph, float turbidity, float tank_level) {
+bool telemetry_publish(const TelemetryData &data) {
     char buf[MQTT_PAYLOAD_BUF_SIZE];
-    snprintf_P(buf, sizeof(buf), PAYLOAD_FMT, ph, turbidity, tank_level);
+    snprintf_P(buf, sizeof(buf), PAYLOAD_FMT,
+               data.ph, data.turbidity1, data.turbidity2,
+               data.tank1_full ? "true" : "false",
+               data.state, data.dose_attempts);
 
     Serial.print("Publishing: ");
     Serial.println(buf);

@@ -4,12 +4,25 @@
 #include "config.h"
 #include "secrets.h"
 #include "network.h"
+#include "actuator.h"
 
 static WiFiClientSecure tlsClient;
 static PubSubClient mqttClient(tlsClient);
 
 static unsigned long lastWifiAttempt = 0;
 static unsigned long lastMqttAttempt = 0;
+
+static void mqtt_callback(char *topic, byte *payload, unsigned int length) {
+    // PubSubClient payload is NOT null-terminated — copy to stack buffer
+    char buf[65];
+    unsigned int copyLen = (length < sizeof(buf) - 1) ? length : sizeof(buf) - 1;
+    memcpy(buf, payload, copyLen);
+    buf[copyLen] = '\0';
+
+    if (strcmp(topic, MQTT_COMMAND_TOPIC) == 0) {
+        actuator_handle_command(buf, copyLen);
+    }
+}
 
 static void sync_ntp() {
     Serial.print("Syncing NTP...");
@@ -69,6 +82,8 @@ static bool connect_mqtt() {
     Serial.print("MQTT connecting...");
     if (mqttClient.connect(MQTT_CLIENT_ID)) {
         Serial.println(" connected");
+        mqttClient.subscribe(MQTT_COMMAND_TOPIC);
+        Serial.println("Subscribed to " MQTT_COMMAND_TOPIC);
         return true;
     }
 
@@ -84,6 +99,7 @@ void network_init() {
     tlsClient.setPrivateKey(AWS_CERT_PRIVATE);
 
     mqttClient.setServer(AWS_IOT_ENDPOINT, MQTT_PORT);
+    mqttClient.setCallback(mqtt_callback);
 
     // Connect WiFi (blocking on first boot is acceptable)
     while (!connect_wifi()) {
