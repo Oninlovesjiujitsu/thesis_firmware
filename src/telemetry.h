@@ -7,9 +7,11 @@ struct TelemetryData {
     float   ph;
     float   turbidity1;
     float   turbidity2;
+    float   rain;
     bool    tank1_full;
     const char *state;
     uint8_t dose_attempts;
+    uint8_t filter_cycles;
 };
 
 bool telemetry_publish(const TelemetryData &data);

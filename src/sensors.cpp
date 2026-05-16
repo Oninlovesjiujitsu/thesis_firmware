@@ -39,8 +39,9 @@ void sensors_init() {
     analogSetWidth(12);              // 12-bit (0–4095)
 
     pinMode(TURBIDITY1_PIN, INPUT);
-    pinMode(TURBIDITY2_PIN, INPUT);      // ADC — no pull-up
+    pinMode(TURBIDITY2_PIN, INPUT);
     pinMode(PH_PIN, INPUT);
+    pinMode(RAIN_PIN, INPUT);
     pinMode(FLOAT_SWITCH_PIN, INPUT_PULLUP);
 
     // --- ADC Diagnostic: scan all ADC1-safe GPIOs ---
@@ -54,6 +55,7 @@ void sensors_init() {
         if (adc1_pins[i] == TURBIDITY1_PIN)     tag = "  <- TURBIDITY1";
         else if (adc1_pins[i] == TURBIDITY2_PIN) tag = "  <- TURBIDITY2";
         else if (adc1_pins[i] == PH_PIN)         tag = "  <- PH";
+        else if (adc1_pins[i] == RAIN_PIN)       tag = "  <- RAIN";
         Serial.printf("  GPIO %d: %4d%s\n", adc1_pins[i], raw, tag);
     }
     Serial.printf("  GPIO %d (float switch): %s\n", FLOAT_SWITCH_PIN,
@@ -87,6 +89,17 @@ float sensors_read_turbidity1() {
 
 float sensors_read_turbidity2() {
     return read_turbidity(TURBIDITY2_PIN, "TURB2");
+}
+
+float sensors_read_rain() {
+    float rawAdc = read_averaged_raw(RAIN_PIN, SENSOR_SAMPLE_COUNT);
+    float normalized = rawAdc / (float)ADC_RESOLUTION;
+
+#if DEBUG_SENSORS
+    Serial.printf("[RAIN] raw_adc=%.0f  normalized=%.3f\n", rawAdc, normalized);
+#endif
+
+    return normalized;
 }
 
 bool sensors_read_float_switch() {

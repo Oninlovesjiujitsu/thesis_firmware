@@ -9,6 +9,7 @@ void pump1_set(bool on);
 void pump2_set(bool on);
 void dose_acid_set(bool on);
 void dose_base_set(bool on);
+void sol1_set(bool open);
 void sol2_set(bool open);
 void sol3_set(bool open);
 void sol4_set(bool open);

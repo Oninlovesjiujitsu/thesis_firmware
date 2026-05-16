@@ -3,30 +3,30 @@
 
 // --- Pin assignments (ADC1 only — ADC2 unavailable when WiFi active) ---
 // Sensors
-#define TURBIDITY1_PIN       34   // ADC1_CH6, Tank 1 (telemetry only)
-#define TURBIDITY2_PIN       32   // ADC1_CH4, Tank 2 (control input)
+#define TURBIDITY1_PIN       34   // ADC1_CH6, Tank 1
+#define TURBIDITY2_PIN       32   // ADC1_CH4, Tank 2 (post-filtration quality check)
 #define PH_PIN               35   // ADC1_CH7
-#define FLOAT_SWITCH_PIN     18   // Digital, INPUT_PULLUP, Tank 1 level
-// GPIO 33 reserved for rain sensor — not this task
+#define FLOAT_SWITCH_PIN     25   // Digital, INPUT_PULLUP, Tank 1 level (~80% capacity)
+#define RAIN_PIN             33   // ADC1_CH5, HL-83 rain sensor (analog)
 
 // Actuators (all active-low relays)
-#define PUMP1_PIN            26   // Tank 1 → filtration → Tank 2
-#define PUMP2_PIN            25   // Tank 2 → faucet OR return to Tank 1
+#define PUMP1_PIN            23   // Tank 1 → filtration → Tank 2
+#define PUMP2_PIN            26   // Tank 2 → faucet OR return to Tank 1
 #define DOSE_ACID_PIN        27   // Dosing pump 1 (acid, lowers pH)
-#define DOSE_BASE_PIN        14   // Dosing pump 2 (base, raises pH)
-// GPIO 13 reserved for solenoid 1 (first flush) — not this task
-#define SOL2_PIN             16   // Path: Tank 1 → filtration
-#define SOL3_PIN             17   // Path: faucet (clean output)
-#define SOL4_PIN             19   // Path: return to Tank 1
+#define DOSE_BASE_PIN        19   // Dosing pump 2 (base, raises pH)
+#define SOL1_PIN             18   // Rain-activated inlet valve
+#define SOL2_PIN             17   // Path: Tank 1 → filtration
+#define SOL3_PIN             16   // Path: faucet (clean output)
+#define SOL4_PIN              4   // Path: return to Tank 1
 
 // --- ADC ---
 #define ADC_RESOLUTION 4095
 #define ADC_VREF 3.3f
 
 // Voltage divider ratios (actual_sensor_V = pin_V × ratio)
-// Turbidity sensors output 0–4.5V → need 20k/20k divider (ratio 2.0)
+// Turbidity sensors output 0–4.5V → need 20k/10k divider (ratio 3.0)
 // pH sensor outputs 0–3.0V → fits ADC range directly (ratio 1.0)
-#define TURB_DIVIDER_RATIO 2.0f
+#define TURB_DIVIDER_RATIO 3.0f
 #define PH_DIVIDER_RATIO   1.0f
 
 // --- Sampling ---
@@ -76,6 +76,7 @@
 #define DISPENSE_RUN_MS      60000UL   // Pump 2 run time for dispensing
 #define RETURN_RUN_MS        60000UL   // Pump 2 run time for returning
 #define COOLDOWN_MS          10000UL   // Motor protection cooldown
+#define MAX_FILTER_CYCLES    3         // Max re-filter attempts before FAULT
 
 // --- Payload buffer ---
 #define MQTT_PAYLOAD_BUF_SIZE 384

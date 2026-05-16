@@ -25,6 +25,7 @@ const char    *treatment_state_name();
 float   treatment_last_turbidity2();
 float   treatment_last_ph();
 uint8_t treatment_dose_attempts();
+uint8_t treatment_filter_cycles();
 
 // MQTT-driven controls
 void treatment_pause();

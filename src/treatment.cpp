@@ -37,6 +37,7 @@ static bool          debounceActive = false;
 static float   lastTurb2      = 0.0f;
 static float   lastPh         = 0.0f;
 static uint8_t doseAttempts   = 0;
+static uint8_t filterCycles   = 0;
 
 // Dosing sub-phase: 0 = dosing pulse, 1 = mixing wait, 2 = re-check
 static uint8_t dosingPhase      = 0;
@@ -71,8 +72,10 @@ static void tick_idle(unsigned long now) {
             debounceStart  = now;
         } else if (now - debounceStart >= FLOAT_DEBOUNCE_MS) {
             debounceActive = false;
-            sol2_set(true);       // Open path: Tank 1 → filtration
-            pump1_set(true);      // Start pump 1
+
+            Serial.println("[TREATMENT] Float triggered — filtering (pH bypassed)");
+            sol2_set(true);
+            pump1_set(true);
             enter_state(TS_FILTERING);
         }
     } else {
@@ -106,39 +109,25 @@ static void tick_settling(unsigned long now) {
 }
 
 static void tick_quality_check() {
-    // Read Tank 2 sensors
     lastTurb2 = sensors_read_turbidity2();
-    lastPh    = sensors_read_ph();
-
-    Serial.printf("[TREATMENT] QC: turb2=%.1f NTU  pH=%.2f\n", lastTurb2, lastPh);
+    Serial.printf("[TREATMENT] QC: turb2=%.1f NTU\n", lastTurb2);
 
     if (lastTurb2 > TURBIDITY_CLEAN_NTU) {
-        // Water still turbid — return to Tank 1 for re-filtering
-        Serial.println("[TREATMENT] Turbid — returning to Tank 1");
-        doseAttempts = 0;
-        sol4_set(true);       // Open return path
-        pump2_set(true);      // Start pump 2
-        enter_state(TS_RETURNING);
-    } else if (lastPh < PH_MIN || lastPh > PH_MAX) {
-        // Clarity OK but pH out of range — dose
-        Serial.println("[TREATMENT] pH out of range — dosing");
-        doseAttempts = 0;
-        dosingPhase  = 0;
-        dosingTimer  = millis();
-
-        // Activate the appropriate dosing pump
-        if (lastPh > PH_MAX) {
-            dose_acid_set(true);
-        } else {
-            dose_base_set(true);
+        filterCycles++;
+        if (filterCycles > MAX_FILTER_CYCLES) {
+            enter_fault("Max filter cycles exceeded");
+            return;
         }
-        enter_state(TS_DOSING);
+        Serial.printf("[TREATMENT] Turbid — returning (cycle %u/%u)\n",
+                      filterCycles, (uint8_t)MAX_FILTER_CYCLES);
+        sol4_set(true);
+        pump2_set(true);
+        enter_state(TS_RETURNING);
     } else {
-        // Clean and pH OK — dispense
         Serial.println("[TREATMENT] Water clean — dispensing");
-        doseAttempts = 0;
-        sol3_set(true);       // Open faucet path
-        pump2_set(true);      // Start pump 2
+        filterCycles = 0;
+        sol3_set(true);
+        pump2_set(true);
         enter_state(TS_DISPENSING);
     }
 }
@@ -168,17 +157,17 @@ static void tick_dosing(unsigned long now) {
         Serial.printf("[TREATMENT] pH re-check #%d: %.2f\n", doseAttempts, lastPh);
 
         if (lastPh >= PH_MIN && lastPh <= PH_MAX) {
-            // pH corrected — dispense
-            Serial.println("[TREATMENT] pH corrected — dispensing");
-            sol3_set(true);
-            pump2_set(true);
-            enter_state(TS_DISPENSING);
+            // pH corrected — proceed to filtering
+            Serial.println("[TREATMENT] pH corrected — filtering");
+            sol2_set(true);
+            pump1_set(true);
+            enter_state(TS_FILTERING);
         } else if (doseAttempts >= MAX_DOSE_ATTEMPTS) {
-            // Max attempts — dispense anyway with warning
-            Serial.println("[TREATMENT] WARNING: max dose attempts — dispensing anyway");
-            sol3_set(true);
-            pump2_set(true);
-            enter_state(TS_DISPENSING);
+            // Max attempts — filter anyway with warning
+            Serial.println("[TREATMENT] WARNING: max dose attempts — filtering anyway");
+            sol2_set(true);
+            pump1_set(true);
+            enter_state(TS_FILTERING);
         } else {
             // Try again
             dosingPhase = 0;
@@ -226,7 +215,8 @@ void treatment_init() {
     state        = TS_IDLE;
     stateEntry   = millis();
     paused       = false;
-    doseAttempts = 0;
+    doseAttempts  = 0;
+    filterCycles  = 0;
     Serial.println("[TREATMENT] Init — IDLE");
 }
 
@@ -268,6 +258,10 @@ uint8_t treatment_dose_attempts() {
     return doseAttempts;
 }
 
+uint8_t treatment_filter_cycles() {
+    return filterCycles;
+}
+
 void treatment_pause() {
     if (state == TS_FAULT) return;
     paused = true;
@@ -290,7 +284,8 @@ void treatment_resume() {
 void treatment_reset() {
     paused = false;
     actuator_all_off();
-    doseAttempts = 0;
+    doseAttempts  = 0;
+    filterCycles  = 0;
     enter_state(TS_IDLE);
     Serial.println("[TREATMENT] RESET — IDLE");
 }

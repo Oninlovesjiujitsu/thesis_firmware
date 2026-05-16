@@ -31,9 +31,11 @@ void loop() {
         td.ph            = sensors_read_ph();
         td.turbidity1    = sensors_read_turbidity1();
         td.turbidity2    = treatment_last_turbidity2();
+        td.rain          = sensors_read_rain();
         td.tank1_full    = sensors_read_float_switch();
         td.state         = treatment_state_name();
         td.dose_attempts = treatment_dose_attempts();
+        td.filter_cycles = treatment_filter_cycles();
 
 #if !SERIAL_ONLY_MODE
         if (network_ensure_connected()) {
@@ -44,10 +46,11 @@ void loop() {
         char buf[MQTT_PAYLOAD_BUF_SIZE];
         snprintf(buf, sizeof(buf),
                  "{\"ph\":%.2f,\"turb1\":%.2f,\"turb2\":%.2f,"
-                 "\"tank1\":%s,\"state\":\"%s\",\"dose\":%u}",
+                 "\"rain\":%.3f,\"tank1\":%s,\"state\":\"%s\","
+                 "\"dose\":%u,\"cycles\":%u}",
                  td.ph, td.turbidity1, td.turbidity2,
-                 td.tank1_full ? "true" : "false",
-                 td.state, td.dose_attempts);
+                 td.rain, td.tank1_full ? "true" : "false",
+                 td.state, td.dose_attempts, td.filter_cycles);
         Serial.println(buf);
 #endif
 

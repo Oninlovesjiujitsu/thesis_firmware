@@ -6,14 +6,16 @@
 
 static const char PAYLOAD_FMT[] PROGMEM =
     "{\"ph\":%.2f,\"turbidity1\":%.2f,\"turbidity2\":%.2f,"
-    "\"tank1_full\":%s,\"state\":\"%s\",\"dose_attempts\":%u}";
+    "\"rain\":%.3f,\"tank1_full\":%s,\"state\":\"%s\","
+    "\"dose_attempts\":%u,\"filter_cycles\":%u}";
 
 bool telemetry_publish(const TelemetryData &data) {
     char buf[MQTT_PAYLOAD_BUF_SIZE];
     snprintf_P(buf, sizeof(buf), PAYLOAD_FMT,
                data.ph, data.turbidity1, data.turbidity2,
-               data.tank1_full ? "true" : "false",
-               data.state, data.dose_attempts);
+               data.rain, data.tank1_full ? "true" : "false",
+               data.state, data.dose_attempts,
+               data.filter_cycles);
 
     Serial.print("Publishing: ");
     Serial.println(buf);
