@@ -1,13 +1,22 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-// --- Pin assignments (ADC1 only — ADC2 unavailable when WiFi active) ---
-// Sensors
-#define TURBIDITY1_PIN       34   // ADC1_CH6, Tank 1
-#define TURBIDITY2_PIN       32   // ADC1_CH4, Tank 2 (post-filtration quality check)
-#define PH_PIN               35   // ADC1_CH7
+// --- ADS1115 external ADC (I2C) ---
+#define ADS1115_ADDR          0x48
+#define I2C_SDA               21
+#define I2C_SCL               22
+
+// Channel-to-sensor mapping
+#define ADS_CH_TURBIDITY1     0    // A0
+#define ADS_CH_TURBIDITY2     2    // A1
+#define ADS_CH_PH             1    // A2
+#define ADS_CH_RAIN           3    // A3
+
+// Rain sensor max voltage for 0–1 normalization
+#define RAIN_MAX_V            3.3f
+
+// Digital sensors on ESP32 GPIO
 #define FLOAT_SWITCH_PIN     25   // Digital, INPUT_PULLUP, Tank 1 level (~80% capacity)
-#define RAIN_PIN             33   // ADC1_CH5, HL-83 rain sensor (analog)
 
 // Actuators (all active-low relays)
 #define PUMP1_PIN            23   // Tank 1 → filtration → Tank 2
@@ -18,16 +27,6 @@
 #define SOL2_PIN             17   // Path: Tank 1 → filtration
 #define SOL3_PIN             16   // Path: faucet (clean output)
 #define SOL4_PIN              4   // Path: return to Tank 1
-
-// --- ADC ---
-#define ADC_RESOLUTION 4095
-#define ADC_VREF 3.3f
-
-// Voltage divider ratios (actual_sensor_V = pin_V × ratio)
-// Turbidity sensors output 0–4.5V → need 20k/10k divider (ratio 3.0)
-// pH sensor outputs 0–3.0V → fits ADC range directly (ratio 1.0)
-#define TURB_DIVIDER_RATIO 3.0f
-#define PH_DIVIDER_RATIO   1.0f
 
 // --- Sampling ---
 #define SENSOR_SAMPLE_COUNT 20
@@ -52,9 +51,9 @@
 #define MQTT_CLIENT_ID "esp32-wq-001"
 #define MQTT_COMMAND_TOPIC "thesis/commands/relay"
 
-// --- pH calibration (DFRobot SEN0161 V1 linear) ---
-#define PH_SLOPE  (-5.70f)
-#define PH_OFFSET (21.34f)
+// --- pH calibration (two-point, measured from DFRobot SEN0161) ---
+#define PH_CAL_V_HIGH  3.58f   // Voltage at pH 0 (acid endpoint)
+#define PH_CAL_V_LOW   2.08f   // Voltage at pH 14 (base endpoint)
 
 // --- Turbidity calibration (DFRobot SEN0189 quadratic) ---
 #define TURB_COEFF_A (-1120.4f)
