@@ -39,9 +39,8 @@ static float   lastPh         = 0.0f;
 static uint8_t doseAttempts   = 0;
 static uint8_t filterCycles   = 0;
 
-// Dosing sub-phase: 0 = dosing pulse, 1 = mixing wait, 2 = re-check
-static uint8_t dosingPhase      = 0;
-static unsigned long dosingTimer = 0;
+// Dosing-cycle flag: true while dose→filter→return→settle→recheck loop is active
+static bool dosingCycle = false;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -73,10 +72,26 @@ static void tick_idle(unsigned long now) {
         } else if (now - debounceStart >= FLOAT_DEBOUNCE_MS) {
             debounceActive = false;
 
-            Serial.println("[TREATMENT] Float triggered — filtering (pH bypassed)");
-            sol2_set(true);
-            pump1_set(true);
-            enter_state(TS_FILTERING);
+            lastPh = sensors_read_ph();
+            Serial.printf("[TREATMENT] Float triggered — pH=%.2f\n", lastPh);
+
+            if (lastPh < PH_MIN || lastPh > PH_MAX) {
+                dosingCycle  = true;
+                doseAttempts = 1;
+                if (lastPh > PH_MAX) {
+                    dose_acid_set(true);
+                    Serial.println("[TREATMENT] pH high — dosing acid");
+                } else {
+                    dose_base_set(true);
+                    Serial.println("[TREATMENT] pH low — dosing base");
+                }
+                enter_state(TS_DOSING);
+            } else {
+                Serial.println("[TREATMENT] pH OK — filtering");
+                sol2_set(true);
+                pump1_set(true);
+                enter_state(TS_FILTERING);
+            }
         }
     } else {
         debounceActive = false;
@@ -87,24 +102,55 @@ static void tick_filtering(unsigned long now) {
     unsigned long elapsed = now - stateEntry;
     bool water = sensors_read_float_switch();
 
-    if (elapsed >= FILTER_MAX_RUN_MS) {
-        // Safety timeout — tank should be empty by now
+    if (elapsed >= FILTER_MAX_RUN_MS || !water) {
         pump1_set(false);
         sol2_set(false);
-        Serial.printf("[TREATMENT] Filter safety timeout %lus\n", elapsed / 1000UL);
-        enter_state(TS_SETTLING);
-    } else if (!water) {
-        // Tank 1 drained — normal end of filtering
-        pump1_set(false);
-        sol2_set(false);
-        Serial.printf("[TREATMENT] Tank 1 empty after %lus\n", elapsed / 1000UL);
-        enter_state(TS_SETTLING);
+        Serial.printf("[TREATMENT] Filtering done after %lus\n", elapsed / 1000UL);
+
+        if (dosingCycle) {
+            // Return water to Tank 1 for pH re-check
+            sol4_set(true);
+            pump2_set(true);
+            enter_state(TS_RETURNING);
+        } else {
+            enter_state(TS_SETTLING);
+        }
     }
 }
 
 static void tick_settling(unsigned long now) {
     if (now - stateEntry >= SETTLE_MS) {
-        enter_state(TS_QUALITY_CHECK);
+        if (dosingCycle) {
+            // Re-check pH after filter→return mix cycle
+            lastPh = sensors_read_ph();
+            Serial.printf("[TREATMENT] pH re-check #%d: %.2f\n", doseAttempts, lastPh);
+
+            if (lastPh >= PH_MIN && lastPh <= PH_MAX) {
+                dosingCycle = false;
+                Serial.println("[TREATMENT] pH OK — final filtering");
+                sol2_set(true);
+                pump1_set(true);
+                enter_state(TS_FILTERING);
+            } else if (doseAttempts >= MAX_DOSE_ATTEMPTS) {
+                dosingCycle = false;
+                Serial.println("[TREATMENT] Max dose attempts — filtering anyway");
+                sol2_set(true);
+                pump1_set(true);
+                enter_state(TS_FILTERING);
+            } else {
+                doseAttempts++;
+                if (lastPh > PH_MAX) {
+                    dose_acid_set(true);
+                    Serial.println("[TREATMENT] pH still high — re-dosing acid");
+                } else {
+                    dose_base_set(true);
+                    Serial.println("[TREATMENT] pH still low — re-dosing base");
+                }
+                enter_state(TS_DOSING);
+            }
+        } else {
+            enter_state(TS_QUALITY_CHECK);
+        }
     }
 }
 
@@ -133,54 +179,13 @@ static void tick_quality_check() {
 }
 
 static void tick_dosing(unsigned long now) {
-    switch (dosingPhase) {
-    case 0: // Dosing pulse active
-        if (now - dosingTimer >= DOSE_PULSE_MS) {
-            dose_acid_set(false);
-            dose_base_set(false);
-            dosingPhase = 1;
-            dosingTimer = now;
-            Serial.println("[TREATMENT] Dose pulse done — mixing");
-        }
-        break;
-
-    case 1: // Mixing wait
-        if (now - dosingTimer >= DOSE_MIX_MS) {
-            dosingPhase = 2;
-            Serial.println("[TREATMENT] Mix done — re-checking pH");
-        }
-        break;
-
-    case 2: { // Re-check pH
-        lastPh = sensors_read_ph();
-        doseAttempts++;
-        Serial.printf("[TREATMENT] pH re-check #%d: %.2f\n", doseAttempts, lastPh);
-
-        if (lastPh >= PH_MIN && lastPh <= PH_MAX) {
-            // pH corrected — proceed to filtering
-            Serial.println("[TREATMENT] pH corrected — filtering");
-            sol2_set(true);
-            pump1_set(true);
-            enter_state(TS_FILTERING);
-        } else if (doseAttempts >= MAX_DOSE_ATTEMPTS) {
-            // Max attempts — filter anyway with warning
-            Serial.println("[TREATMENT] WARNING: max dose attempts — filtering anyway");
-            sol2_set(true);
-            pump1_set(true);
-            enter_state(TS_FILTERING);
-        } else {
-            // Try again
-            dosingPhase = 0;
-            dosingTimer = now;
-            if (lastPh > PH_MAX) {
-                dose_acid_set(true);
-            } else {
-                dose_base_set(true);
-            }
-            Serial.println("[TREATMENT] Re-dosing");
-        }
-        break;
-    }
+    if (now - stateEntry >= DOSE_PULSE_MS) {
+        dose_acid_set(false);
+        dose_base_set(false);
+        Serial.println("[TREATMENT] Dose done — filtering to mix");
+        sol2_set(true);
+        pump1_set(true);
+        enter_state(TS_FILTERING);
     }
 }
 
@@ -196,7 +201,12 @@ static void tick_returning(unsigned long now) {
     if (now - stateEntry >= RETURN_RUN_MS) {
         pump2_set(false);
         sol4_set(false);
-        enter_state(TS_COOLDOWN);
+
+        if (dosingCycle) {
+            enter_state(TS_SETTLING);   // Settle then re-check pH
+        } else {
+            enter_state(TS_COOLDOWN);
+        }
     }
 }
 
@@ -215,6 +225,7 @@ void treatment_init() {
     state        = TS_IDLE;
     stateEntry   = millis();
     paused       = false;
+    dosingCycle   = false;
     doseAttempts  = 0;
     filterCycles  = 0;
     Serial.println("[TREATMENT] Init — IDLE");
@@ -277,6 +288,7 @@ void treatment_resume() {
     paused = false;
     // Re-entering mid-state is unsafe — reset to IDLE
     actuator_all_off();
+    dosingCycle = false;
     enter_state(TS_IDLE);
     Serial.println("[TREATMENT] RESUMED — restarting from IDLE");
 }
@@ -284,6 +296,7 @@ void treatment_resume() {
 void treatment_reset() {
     paused = false;
     actuator_all_off();
+    dosingCycle   = false;
     doseAttempts  = 0;
     filterCycles  = 0;
     enter_state(TS_IDLE);

@@ -58,19 +58,18 @@
 // --- Turbidity calibration (DFRobot SEN0189 quadratic) ---
 #define TURB_COEFF_A (-1120.4f)
 #define TURB_COEFF_B (5742.3f)
-#define TURB_COEFF_C (-4352.9f)
+#define TURB_COEFF_C (-4353.8f)
 
 // --- Water quality thresholds ---
 #define TURBIDITY_CLEAN_NTU  5.0f
-#define PH_MIN               6.5f
-#define PH_MAX               8.5f
+#define PH_MIN               6.0f
+#define PH_MAX               9.0f
 
 // --- Treatment timing ---
 #define FLOAT_DEBOUNCE_MS    3000UL    // Float switch must be stable 3s
 #define FILTER_MAX_RUN_MS    120000UL  // Safety: max filtering time 120s
 #define SETTLE_MS            5000UL    // Settling time after flow stops
 #define DOSE_PULSE_MS        3000UL    // Dosing pump ON time per attempt
-#define DOSE_MIX_MS          30000UL   // Wait for mixing after dose
 #define MAX_DOSE_ATTEMPTS    3         // Max pH correction attempts
 #define DISPENSE_RUN_MS      60000UL   // Pump 2 run time for dispensing
 #define RETURN_RUN_MS        60000UL   // Pump 2 run time for returning

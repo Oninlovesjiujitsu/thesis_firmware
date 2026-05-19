@@ -7,9 +7,12 @@
 static Adafruit_ADS1115 ads;
 static bool ads_ok = false;
 
-// Read averaged voltage from ADS1115 channel (returns volts)
-static float read_averaged_voltage(uint8_t channel, int samples) {
-    if (!ads_ok) return 0.0f;
+// Read averaged voltage from ADS1115 channel (returns volts, optionally raw ADC)
+static float read_averaged_voltage(uint8_t channel, int samples, int *raw_out = nullptr) {
+    if (!ads_ok) {
+        if (raw_out) *raw_out = 0;
+        return 0.0f;
+    }
 
     long sum = 0;
     for (int i = 0; i < samples; i++) {
@@ -17,26 +20,29 @@ static float read_averaged_voltage(uint8_t channel, int samples) {
         sum += raw;
         delay(SENSOR_SAMPLE_DELAY_MS);
     }
-    float avg_raw = sum / (float)samples;
+    int avg_raw = (int)(sum / (float)samples);
+    if (raw_out) *raw_out = avg_raw;
     return ads.computeVolts((int16_t)avg_raw);
 }
 
 // Shared turbidity conversion — same calibration curve for both sensors
 static float read_turbidity(uint8_t channel, const char *label) {
-    float voltage = read_averaged_voltage(channel, SENSOR_SAMPLE_COUNT);
-    float ntu = TURB_COEFF_A * voltage * voltage
-              + TURB_COEFF_B * voltage
-              + TURB_COEFF_C;
+    int raw_adc;
+    float voltage = read_averaged_voltage(channel, SENSOR_SAMPLE_COUNT, &raw_adc);
+    float ntu;
+
+    if (voltage > 4.1f) {
+        ntu = 0.0f;          // Pure water
+    } else if (voltage < 2.5f) {
+        ntu = 3000.0f;       // Max turbidity
+    } else {
+        ntu = TURB_COEFF_A * voltage * voltage
+            + TURB_COEFF_B * voltage
+            + TURB_COEFF_C;
+    }
 
 #if DEBUG_SENSORS
-    Serial.printf("[%s] v=%.3fV  ntu_raw=%.2f", label, voltage, ntu);
-#endif
-
-    if (ntu < 0.0f) ntu = 0.0f;
-    if (ntu > 3000.0f) ntu = 3000.0f;
-
-#if DEBUG_SENSORS
-    Serial.printf("  ntu_clamped=%.2f\n", ntu);
+    Serial.printf("[%s] raw=%d  v=%.3fV  ntu=%.2f\n", label, raw_adc, voltage, ntu);
 #endif
 
     return ntu;
@@ -74,18 +80,15 @@ void sensors_init() {
 }
 
 float sensors_read_ph() {
-    float voltage = read_averaged_voltage(ADS_CH_PH, SENSOR_SAMPLE_COUNT);
+    int raw_adc;
+    float voltage = read_averaged_voltage(ADS_CH_PH, SENSOR_SAMPLE_COUNT, &raw_adc);
     float ph = (voltage - PH_CAL_V_HIGH) * 14.0f / (PH_CAL_V_LOW - PH_CAL_V_HIGH);
-
-#if DEBUG_SENSORS
-    Serial.printf("[pH] v=%.3fV  ph_raw=%.2f", voltage, ph);
-#endif
 
     if (ph < 0.0f) ph = 0.0f;
     if (ph > 14.0f) ph = 14.0f;
 
 #if DEBUG_SENSORS
-    Serial.printf("  ph_clamped=%.2f\n", ph);
+    Serial.printf("[pH]    raw=%d  v=%.3fV  ph=%.2f\n", raw_adc, voltage, ph);
 #endif
 
     return ph;
@@ -100,12 +103,13 @@ float sensors_read_turbidity2() {
 }
 
 float sensors_read_rain() {
-    float voltage = read_averaged_voltage(ADS_CH_RAIN, SENSOR_SAMPLE_COUNT);
+    int raw_adc;
+    float voltage = read_averaged_voltage(ADS_CH_RAIN, SENSOR_SAMPLE_COUNT, &raw_adc);
     float normalized = voltage / RAIN_MAX_V;
     if (normalized > 1.0f) normalized = 1.0f;
 
 #if DEBUG_SENSORS
-    Serial.printf("[RAIN] v=%.3fV  normalized=%.3f\n", voltage, normalized);
+    Serial.printf("[RAIN]  raw=%d  v=%.3fV  norm=%.3f\n", raw_adc, voltage, normalized);
 #endif
 
     return normalized;
