@@ -5,12 +5,16 @@
 
 enum TreatmentState : uint8_t {
     TS_IDLE,
-    TS_FILTERING,
-    TS_SETTLING,
-    TS_QUALITY_CHECK,
+    TS_COLLECTING,
+    TS_SENSING,
     TS_DOSING,
-    TS_DISPENSING,
+    TS_MIXING,
     TS_RETURNING,
+    TS_SETTLE,
+    TS_PH_CHECK,
+    TS_FINAL_FILTER,
+    TS_TURB_CHECK,
+    TS_DISPENSING,
     TS_COOLDOWN,
     TS_FAULT
 };
@@ -21,11 +25,13 @@ void treatment_tick();   // Non-blocking, call every loop iteration
 TreatmentState treatment_get_state();
 const char    *treatment_state_name();
 
-// Last readings captured at TS_QUALITY_CHECK (for telemetry)
-float   treatment_last_turbidity2();
-float   treatment_last_ph();
+// Readings captured during treatment cycle (for telemetry)
+float   treatment_last_turbidity1();  // Turb1 at SENSING
+float   treatment_last_turbidity2();  // Turb2 at TURB_CHECK
+float   treatment_last_ph();          // pH at SENSING
 uint8_t treatment_dose_attempts();
 uint8_t treatment_filter_cycles();
+bool    treatment_warn_ph_max();      // true if pH correction gave up
 
 // MQTT-driven controls
 void treatment_pause();

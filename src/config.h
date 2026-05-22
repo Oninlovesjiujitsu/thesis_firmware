@@ -35,7 +35,7 @@
 // --- Mode flags ---
 // Set to 1 to bypass all network code (WiFi, NTP, TLS, MQTT).
 // Sensors read and print to Serial only — use for bench testing.
-#define SERIAL_ONLY_MODE 0
+#define SERIAL_ONLY_MODE 1
 
 // Set to 0 to disable sensor debug output
 #define DEBUG_SENSORS 1
@@ -60,19 +60,34 @@
 #define TURB_COEFF_B (5742.3f)
 #define TURB_COEFF_C (-4353.8f)
 
-// --- Water quality thresholds ---
-#define TURBIDITY_CLEAN_NTU  5.0f
-#define PH_MIN               6.0f
-#define PH_MAX               9.0f
+// --- Water quality thresholds (Philippine National Standards) ---
+#define TURBIDITY_CLEAN_NTU  5.0f     // Max NTU for drinking water
+#define PH_MIN_ACCEPTABLE    6.5f
+#define PH_MAX_ACCEPTABLE    8.5f
+#define PH_TARGET            7.0f
+
+// --- Rain trigger (HL-83, inverted: low voltage = wet) ---
+#define RAIN_TRIGGER_THRESHOLD  0.5f    // Below this = rain detected
+#define RAIN_DEBOUNCE_MS        3000UL  // Reject transient moisture
+#define RAIN_CHECK_INTERVAL_MS  1000UL  // Throttle rain reads in IDLE
+
+// --- Dosing formula (PLACEHOLDER — calibrate via bench titration) ---
+#define TANK1_VOLUME_L          18.0f
+#define ACID_ML_PER_L_PER_PH   1.0f
+#define BASE_ML_PER_L_PER_PH   1.0f
+#define DOSE_ACID_RATE_ML_S    2.0f
+#define DOSE_BASE_RATE_ML_S    2.0f
+#define DOSE_MIN_DURATION_MS   1000UL
+#define DOSE_MAX_DURATION_MS   30000UL
 
 // --- Treatment timing ---
 #define FLOAT_DEBOUNCE_MS    3000UL    // Float switch must be stable 3s
-#define FILTER_MAX_RUN_MS    120000UL  // Safety: max filtering time 120s
-#define SETTLE_MS            5000UL    // Settling time after flow stops
-#define DOSE_PULSE_MS        3000UL    // Dosing pump ON time per attempt
+#define MIX_FORWARD_MS       10000UL   // Sol2+Pump1 mixing duration
+#define SETTLE_MS            10000UL   // Settling time after flow stops
+#define FILTER_MAX_RUN_MS    10000UL   // Final filter pass duration
 #define MAX_DOSE_ATTEMPTS    3         // Max pH correction attempts
-#define DISPENSE_RUN_MS      60000UL   // Pump 2 run time for dispensing
-#define RETURN_RUN_MS        60000UL   // Pump 2 run time for returning
+#define DISPENSE_RUN_MS      10000UL   // Pump 2 run time for dispensing
+#define RETURN_RUN_MS        10000UL   // Pump 2 run time for returning
 #define COOLDOWN_MS          10000UL   // Motor protection cooldown
 #define MAX_FILTER_CYCLES    3         // Max re-filter attempts before FAULT
 
