@@ -5,6 +5,7 @@
 
 enum TreatmentState : uint8_t {
     TS_IDLE,
+    TS_FIRST_FLUSH,
     TS_COLLECTING,
     TS_SENSING,
     TS_DOSING,

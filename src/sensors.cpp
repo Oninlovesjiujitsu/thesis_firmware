@@ -25,10 +25,40 @@ static float read_averaged_voltage(uint8_t channel, int samples, int *raw_out = 
     return ads.computeVolts((int16_t)avg_raw);
 }
 
+// Read median voltage from ADS1115 channel (returns volts, optionally raw median)
+// DFRobot recommends median filtering for SEN0189 turbidity noise rejection
+static float read_median_voltage(uint8_t channel, int samples, int *raw_out = nullptr) {
+    if (!ads_ok) {
+        if (raw_out) *raw_out = 0;
+        return 0.0f;
+    }
+
+    int16_t buf[SENSOR_SAMPLE_COUNT];
+    for (int i = 0; i < samples; i++) {
+        buf[i] = ads.readADC_SingleEnded(channel);
+        delay(SENSOR_SAMPLE_DELAY_MS);
+    }
+
+    // Insertion sort — 20 elements, trivial cost
+    for (int i = 1; i < samples; i++) {
+        int16_t key = buf[i];
+        int j = i - 1;
+        while (j >= 0 && buf[j] > key) {
+            buf[j + 1] = buf[j];
+            j--;
+        }
+        buf[j + 1] = key;
+    }
+
+    int16_t median = buf[samples / 2];
+    if (raw_out) *raw_out = (int)median;
+    return ads.computeVolts(median);
+}
+
 // Shared turbidity conversion — same calibration curve for both sensors
 static float read_turbidity(uint8_t channel, const char *label) {
     int raw_adc;
-    float voltage = read_averaged_voltage(channel, SENSOR_SAMPLE_COUNT, &raw_adc);
+    float voltage = read_median_voltage(channel, SENSOR_SAMPLE_COUNT, &raw_adc);
     float ntu;
 
     if (voltage > 4.1f) {
@@ -41,8 +71,16 @@ static float read_turbidity(uint8_t channel, const char *label) {
             + TURB_COEFF_C;
     }
 
+    // Quadratic can go slightly negative near boundaries
+    if (ntu < 0.0f) ntu = 0.0f;
+
 #if DEBUG_SENSORS
-    Serial.printf("[%s] raw=%d  v=%.3fV  ntu=%.2f\n", label, raw_adc, voltage, ntu);
+    const char *note = "";
+    if (voltage < 0.01f)       note = " (WARNING: 0V — check wiring)";
+    else if (voltage > 4.1f)   note = " (CLEAR — voltage above 4.1V threshold)";
+    else if (voltage > 3.3f && voltage < 3.7f) note = " (WARNING: possible VDD clamping)";
+    else if (voltage < 2.5f)   note = " (OPAQUE — max turbidity range)";
+    Serial.printf("[%s] raw=%d  v=%.3fV  ntu=%.2f%s\n", label, raw_adc, voltage, ntu, note);
 #endif
 
     return ntu;
@@ -69,7 +107,12 @@ void sensors_init() {
         for (int ch = 0; ch < 4; ch++) {
             int16_t raw = ads.readADC_SingleEnded(ch);
             float v = ads.computeVolts(raw);
-            Serial.printf("  A%d (%s): raw=%d  v=%.3fV\n", ch, ch_labels[ch], raw, v);
+            const char *warn = "";
+            if (v < 0.01f)
+                warn = "  ** WARNING: No signal — check wiring **";
+            else if (v > 3.3f && v < 3.7f && (ch == ADS_CH_TURBIDITY1 || ch == ADS_CH_TURBIDITY2))
+                warn = "  ** WARNING: Possible VDD clamping — verify ADS1115 has 5V **";
+            Serial.printf("  A%d (%s): raw=%d  v=%.3fV%s\n", ch, ch_labels[ch], raw, v, warn);
         }
     } else {
         Serial.println("  (skipped — ADS1115 not available)");

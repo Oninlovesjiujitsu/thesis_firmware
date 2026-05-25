@@ -8,8 +8,8 @@
 
 // Channel-to-sensor mapping
 #define ADS_CH_TURBIDITY1     0    // A0
-#define ADS_CH_TURBIDITY2     2    // A1
-#define ADS_CH_PH             1    // A2
+#define ADS_CH_TURBIDITY2     2    // A2
+#define ADS_CH_PH             1    // A1
 #define ADS_CH_RAIN           3    // A3
 
 // Rain sensor max voltage for 0–1 normalization
@@ -36,7 +36,7 @@
 // Set to 1 to bypass all network code (WiFi, NTP, TLS, MQTT).
 // Sensors read and print to Serial only — use for bench testing.
 // Set to 0 to connect to AWS/IoT Service
-#define SERIAL_ONLY_MODE 0
+#define SERIAL_ONLY_MODE 1
 
 // Set to 0 to disable sensor debug output
 #define DEBUG_SENSORS 1
@@ -71,6 +71,7 @@
 #define RAIN_TRIGGER_THRESHOLD  0.5f    // Below this = rain detected
 #define RAIN_DEBOUNCE_MS        3000UL  // Reject transient moisture
 #define RAIN_CHECK_INTERVAL_MS  1000UL  // Throttle rain reads in IDLE
+#define FIRST_FLUSH_MS          60000UL // 1 minute first flush duration
 
 // --- Dosing formula (PLACEHOLDER — calibrate via bench titration) ---
 #define TANK1_VOLUME_L          18.0f
@@ -95,4 +96,4 @@
 // --- Payload buffer ---
 #define MQTT_PAYLOAD_BUF_SIZE 384
 
-#endif // CONFIG_H
+#endif // CONFIG_H  

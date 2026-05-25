@@ -8,6 +8,7 @@
 // State names in PROGMEM
 // ---------------------------------------------------------------------------
 static const char S_IDLE[]         PROGMEM = "IDLE";
+static const char S_FIRST_FLUSH[]  PROGMEM = "FIRST_FLUSH";
 static const char S_COLLECTING[]   PROGMEM = "COLLECTING";
 static const char S_SENSING[]      PROGMEM = "SENSING";
 static const char S_DOSING[]       PROGMEM = "DOSING";
@@ -22,7 +23,7 @@ static const char S_COOLDOWN[]     PROGMEM = "COOLDOWN";
 static const char S_FAULT[]        PROGMEM = "FAULT";
 
 static const char * const STATE_NAMES[] PROGMEM = {
-    S_IDLE, S_COLLECTING, S_SENSING, S_DOSING, S_MIXING,
+    S_IDLE, S_FIRST_FLUSH, S_COLLECTING, S_SENSING, S_DOSING, S_MIXING,
     S_RETURNING, S_SETTLE, S_PH_CHECK, S_FINAL_FILTER,
     S_TURB_CHECK, S_DISPENSING, S_COOLDOWN, S_FAULT
 };
@@ -124,12 +125,20 @@ static void tick_idle(unsigned long now) {
             debounceStart  = now;
         } else if (now - debounceStart >= RAIN_DEBOUNCE_MS) {
             debounceActive = false;
-            Serial.printf("[TREATMENT] Rain detected (%.3f) — opening Sol1\n", rain);
+            Serial.printf("[TREATMENT] Rain detected (%.3f) — first flush\n", rain);
             sol1_set(true);
-            enter_state(TS_COLLECTING);
+            enter_state(TS_FIRST_FLUSH);
         }
     } else {
         debounceActive = false;
+    }
+}
+
+static void tick_first_flush(unsigned long now) {
+    if (now - stateEntry >= FIRST_FLUSH_MS) {
+        sol1_set(false);
+        Serial.println("[TREATMENT] First flush done — collecting");
+        enter_state(TS_COLLECTING);
     }
 }
 
@@ -142,8 +151,7 @@ static void tick_collecting(unsigned long now) {
             debounceStart  = now;
         } else if (now - debounceStart >= FLOAT_DEBOUNCE_MS) {
             debounceActive = false;
-            sol1_set(false);
-            Serial.println("[TREATMENT] Tank1 full — closing Sol1, sensing");
+            Serial.println("[TREATMENT] Tank1 full — sensing");
             enter_state(TS_SENSING);
         }
     } else {
@@ -340,6 +348,7 @@ void treatment_tick() {
 
     switch (state) {
     case TS_IDLE:         tick_idle(now);          break;
+    case TS_FIRST_FLUSH:  tick_first_flush(now);   break;
     case TS_COLLECTING:   tick_collecting(now);    break;
     case TS_SENSING:      tick_sensing();          break;
     case TS_DOSING:       tick_dosing(now);        break;
