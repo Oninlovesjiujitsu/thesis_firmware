@@ -36,7 +36,7 @@
 // Set to 1 to bypass all network code (WiFi, NTP, TLS, MQTT).
 // Sensors read and print to Serial only — use for bench testing.
 // Set to 0 to connect to AWS/IoT Service
-#define SERIAL_ONLY_MODE 1
+#define SERIAL_ONLY_MODE 0
 
 // Set to 0 to disable sensor debug output
 #define DEBUG_SENSORS 1

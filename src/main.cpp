@@ -50,6 +50,7 @@ void loop() {
                  td.ph, td.turbidity1, td.turbidity2,
                  td.rain, td.tank1_full ? "true" : "false",
                  td.state, td.filter_cycles);
+        Serial.print("[DATA]  ");
         Serial.println(buf);
 #endif
 

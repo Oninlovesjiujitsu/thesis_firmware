@@ -12,8 +12,7 @@ enum TreatmentState : uint8_t {
     TS_TURB_CHECK,
     TS_DISPENSING,
     TS_RETURNING,
-    TS_COOLDOWN,
-    TS_FAULT
+    TS_COOLDOWN
 };
 
 void treatment_init();

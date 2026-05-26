@@ -16,11 +16,10 @@ static const char S_TURB_CHECK[] PROGMEM = "TURB_CHECK";
 static const char S_DISPENSING[] PROGMEM = "DISPENSING";
 static const char S_RETURNING[]  PROGMEM = "RETURNING";
 static const char S_COOLDOWN[]   PROGMEM = "COOLDOWN";
-static const char S_FAULT[]      PROGMEM = "FAULT";
 
 static const char * const STATE_NAMES[] PROGMEM = {
     S_IDLE, S_FIRST_FLUSH, S_COLLECTING, S_DOSING, S_FILTERING,
-    S_TURB_CHECK, S_DISPENSING, S_RETURNING, S_COOLDOWN, S_FAULT
+    S_TURB_CHECK, S_DISPENSING, S_RETURNING, S_COOLDOWN
 };
 
 // ---------------------------------------------------------------------------
@@ -48,13 +47,6 @@ static uint8_t filterCycles   = 0;
 static void enter_state(TreatmentState next) {
     Serial.printf("[TREATMENT] %s -> %s\n", STATE_NAMES[state], STATE_NAMES[next]);
     state      = next;
-    stateEntry = millis();
-}
-
-static void enter_fault(const char *reason) {
-    Serial.printf("[TREATMENT] FAULT: %s\n", reason);
-    actuator_all_off();
-    state      = TS_FAULT;
     stateEntry = millis();
 }
 
@@ -124,14 +116,6 @@ static void tick_dosing(unsigned long now) {
 }
 
 static void tick_filtering(unsigned long now) {
-    // Safety timeout first
-    if (now - stateEntry >= FILTER_TIMEOUT_MS) {
-        pump1_set(false);
-        sol2_set(false);
-        enter_fault("Filter timeout — float switch stuck?");
-        return;
-    }
-
     // Run until tank1 is empty (float switch LOW), debounced
     bool empty = !sensors_read_float_switch();
 
@@ -162,12 +146,8 @@ static void tick_turb_check() {
         enter_state(TS_DISPENSING);
     } else {
         filterCycles++;
-        if (filterCycles > MAX_FILTER_CYCLES) {
-            enter_fault("Max filter cycles exceeded");
-            return;
-        }
-        Serial.printf("[TREATMENT] Turbid — returning for re-filter (cycle %u/%u)\n",
-                      filterCycles, (uint8_t)MAX_FILTER_CYCLES);
+        Serial.printf("[TREATMENT] Turbid — returning for re-filter (cycle %u)\n",
+                      filterCycles);
         sol4_set(true);
         pump2_set(true);
         enter_state(TS_RETURNING);
@@ -215,7 +195,7 @@ void treatment_init() {
 }
 
 void treatment_tick() {
-    if (paused || state == TS_FAULT) return;
+    if (paused) return;
 
     unsigned long now = millis();
 
@@ -229,7 +209,6 @@ void treatment_tick() {
     case TS_DISPENSING:   tick_dispensing(now);      break;
     case TS_RETURNING:    tick_returning(now);       break;
     case TS_COOLDOWN:     tick_cooldown(now);        break;
-    case TS_FAULT:        break;
     }
 }
 
@@ -250,17 +229,12 @@ uint8_t treatment_filter_cycles() {
 }
 
 void treatment_pause() {
-    if (state == TS_FAULT) return;
     paused = true;
     actuator_all_off();
     Serial.println("[TREATMENT] PAUSED — all actuators OFF");
 }
 
 void treatment_resume() {
-    if (state == TS_FAULT) {
-        Serial.println("[TREATMENT] Cannot resume from FAULT — use RESET");
-        return;
-    }
     paused = false;
     actuator_all_off();
     enter_state(TS_IDLE);
