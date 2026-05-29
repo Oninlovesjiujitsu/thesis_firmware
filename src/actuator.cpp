@@ -57,23 +57,26 @@ void actuator_all_off() {
     Serial.println("[ACTUATOR] ALL OFF (safety)");
 }
 
-void actuator_handle_command(const char *payload, unsigned int length) {
-    if (length > 64) {
+bool actuator_handle_command(const char *payload, unsigned int length) {
+    if (length > 255) {
         Serial.println("[ACTUATOR] Payload too large, ignored");
-        return;
+        return false;
     }
 
     if (strstr(payload, "\"PAUSE\"") != NULL) {
         treatment_pause();
+        return false;
     } else if (strstr(payload, "\"RESUME\"") != NULL) {
         treatment_resume();
+        return false;
     } else if (strstr(payload, "\"RESET\"") != NULL) {
         treatment_reset();
+        return true;
     } else if (strstr(payload, "\"ON\"") != NULL || strstr(payload, "\"OFF\"") != NULL) {
         // Manual relay commands only allowed when treatment is IDLE
         if (treatment_get_state() != TS_IDLE) {
             Serial.println("[ACTUATOR] Manual command rejected — treatment active");
-            return;
+            return false;
         }
         bool on = strstr(payload, "\"ON\"") != NULL;
         if      (strstr(payload, "\"PUMP1\""))  pump1_set(on);
@@ -85,7 +88,9 @@ void actuator_handle_command(const char *payload, unsigned int length) {
         else if (strstr(payload, "\"ACID\""))   dose_acid_set(on);
         else if (strstr(payload, "\"BASE\""))   dose_base_set(on);
         else Serial.println("[ACTUATOR] Unknown relay target");
+        return false;
     } else {
         Serial.println("[ACTUATOR] Unknown command, ignored");
+        return false;
     }
 }

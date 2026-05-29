@@ -14,13 +14,17 @@ static unsigned long lastMqttAttempt = 0;
 
 static void mqtt_callback(char *topic, byte *payload, unsigned int length) {
     // PubSubClient payload is NOT null-terminated — copy to stack buffer
-    char buf[65];
+    char buf[256];
     unsigned int copyLen = (length < sizeof(buf) - 1) ? length : sizeof(buf) - 1;
     memcpy(buf, payload, copyLen);
     buf[copyLen] = '\0';
 
     if (strcmp(topic, MQTT_COMMAND_TOPIC) == 0) {
-        actuator_handle_command(buf, copyLen);
+        bool acked = actuator_handle_command(buf, copyLen);
+        if (acked) {
+            mqttClient.publish(MQTT_STATUS_TOPIC,
+                               "{\"status\":\"confirmed\",\"action\":\"RESET\"}");
+        }
     }
 }
 
@@ -55,9 +59,9 @@ static bool connect_wifi() {
     WiFi.mode(WIFI_STA);
     WiFi.begin(SECRET_SSID, SECRET_PASS);
 
-    // Brief blocking wait — WiFi association typically takes 1-3s
+    // 30s window — phone hotspot DHCP can be slow
     int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+    while (WiFi.status() != WL_CONNECTED && attempts < 60) {
         delay(500);
         attempts++;
     }

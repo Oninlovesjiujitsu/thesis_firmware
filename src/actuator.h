@@ -18,6 +18,7 @@ void sol4_set(bool open);
 void actuator_all_off();
 
 // MQTT command handler (PAUSE/RESUME/RESET + manual relay ON/OFF when IDLE)
-void actuator_handle_command(const char *payload, unsigned int length);
+// Returns true if RESET was executed and caller should publish an ACK.
+bool actuator_handle_command(const char *payload, unsigned int length);
 
 #endif // ACTUATOR_H

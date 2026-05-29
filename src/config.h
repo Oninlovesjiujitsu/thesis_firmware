@@ -51,12 +51,12 @@
 #define MQTT_TOPIC "thesis/telemetry"
 #define MQTT_CLIENT_ID "esp32-wq-001"
 #define MQTT_COMMAND_TOPIC "thesis/commands/relay"
+#define MQTT_STATUS_TOPIC  "thesis/status/relay"
 
 // --- pH calibration (two-point, measured from DFRobot SEN0161) ---
 #define PH_CAL_V_HIGH  3.58f   // Voltage at pH 0 (acid endpoint)
 #define PH_CAL_V_LOW   2.08f   // Voltage at pH 14 (base endpoint)
 
-// --- Turbidity calibration (DFRobot SEN0189 quadratic) ---
 #define TURB_COEFF_A (-1120.4f)
 #define TURB_COEFF_B (5742.3f)
 #define TURB_COEFF_C (-4353.8f)
