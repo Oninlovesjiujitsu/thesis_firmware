@@ -29,8 +29,10 @@
 #define SOL4_PIN              4   // Path: return to Tank 1
 
 // --- Sampling ---
-#define SENSOR_SAMPLE_COUNT 20
-#define SENSOR_SAMPLE_DELAY_MS 10
+#define MEDIAN_WINDOW          21    // odd, for true median (dual-stage filter)
+#define MA_WINDOW              20    // moving-average ring buffer depth
+#define RAIN_SAMPLE_COUNT      20    // rain still uses simple arithmetic mean
+#define SENSOR_SAMPLE_DELAY_MS  5    // ms between ADS reads (ADS1115 blocks until done)
 
 // --- Mode flags ---
 // Set to 1 to bypass all network code (WiFi, NTP, TLS, MQTT).
@@ -53,13 +55,12 @@
 #define MQTT_COMMAND_TOPIC "thesis/commands/relay"
 #define MQTT_STATUS_TOPIC  "thesis/status/relay"
 
-// --- pH calibration (two-point, measured from DFRobot SEN0161) ---
-#define PH_CAL_V_HIGH  3.58f   // Voltage at pH 0 (acid endpoint)
-#define PH_CAL_V_LOW   2.08f   // Voltage at pH 14 (base endpoint)
+// --- pH calibration (two-point, from thesis defense) ---
+#define PH_CAL_V_PH7   2.8894f  // Voltage measured at pH 7.0 buffer
+#define PH_CAL_V_PH4   3.3824f  // Voltage measured at pH 4.0 buffer
 
-#define TURB_COEFF_A (-1120.4f)
-#define TURB_COEFF_B (5742.3f)
-#define TURB_COEFF_C (-4353.8f)
+// Set to 1 for serial-guided pH calibration (never returns), 0 for normal operation
+#define CALIBRATION_MODE 0
 
 // --- Water quality thresholds (Philippine National Standards) ---
 #define TURBIDITY_CLEAN_NTU  5.0f     // Max NTU for drinking water
@@ -77,7 +78,7 @@
 #define FLOAT_DEBOUNCE_MS    3000UL    // Float switch must be stable 3s
 #define FILTER_TIMEOUT_MS    120000UL  // Safety timeout for filtering (2 min)
 #define DISPENSE_RUN_MS      10000UL   // Pump 2 run time for dispensing
-#define RETURN_RUN_MS        10000UL   // Pump 2 run time for returning
+#define RETURN_TIMEOUT_MS    120000UL  // Safety cap for return fill (matches FILTER_TIMEOUT_MS)
 #define COOLDOWN_MS          10000UL   // Motor protection cooldown
 #define MAX_FILTER_CYCLES    3         // Max re-filter attempts before FAULT
 

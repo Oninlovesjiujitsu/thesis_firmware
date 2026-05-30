@@ -155,13 +155,35 @@ static void tick_turb_check() {
 }
 
 static void tick_returning(unsigned long now) {
-    if (now - stateEntry >= RETURN_RUN_MS) {
+    // Safety cap — if float switch never triggers, proceed anyway
+    if (now - stateEntry >= RETURN_TIMEOUT_MS) {
+        debounceActive = false;
         pump2_set(false);
         sol4_set(false);
-        Serial.println("[TREATMENT] Return done — re-filtering");
+        Serial.println("[TREATMENT] Return timeout — re-filtering (float fault?)");
         sol2_set(true);
         pump1_set(true);
         enter_state(TS_FILTERING);
+        return;
+    }
+
+    bool full = sensors_read_float_switch();
+
+    if (full) {
+        if (!debounceActive) {
+            debounceActive = true;
+            debounceStart  = now;
+        } else if (now - debounceStart >= FLOAT_DEBOUNCE_MS) {
+            debounceActive = false;
+            pump2_set(false);
+            sol4_set(false);
+            Serial.println("[TREATMENT] Tank1 full — re-filtering");
+            sol2_set(true);
+            pump1_set(true);
+            enter_state(TS_FILTERING);
+        }
+    } else {
+        debounceActive = false;
     }
 }
 
