@@ -20,10 +20,30 @@ static void mqtt_callback(char *topic, byte *payload, unsigned int length) {
     buf[copyLen] = '\0';
 
     if (strcmp(topic, MQTT_COMMAND_TOPIC) == 0) {
-        bool acked = actuator_handle_command(buf, copyLen);
-        if (acked) {
-            mqttClient.publish(MQTT_STATUS_TOPIC,
-                               "{\"status\":\"confirmed\",\"action\":\"RESET\"}");
+        char relay_out[8];
+        char action_out[8];
+        CmdResult res = actuator_handle_command(buf, copyLen, relay_out, action_out);
+
+        if (res != CMD_NONE) {
+            char ack[96];
+            if (res == CMD_OK) {
+                if (relay_out[0] != '\0') {
+                    snprintf(ack, sizeof(ack),
+                             "{\"status\":\"ok\",\"relay\":\"%s\",\"action\":\"%s\"}",
+                             relay_out, action_out);
+                } else {
+                    snprintf(ack, sizeof(ack),
+                             "{\"status\":\"ok\",\"action\":\"%s\"}", action_out);
+                }
+            } else if (res == CMD_REJECTED_BUSY) {
+                snprintf(ack, sizeof(ack),
+                         "{\"status\":\"rejected\",\"relay\":\"%s\",\"reason\":\"busy\"}",
+                         relay_out);
+            } else {
+                snprintf(ack, sizeof(ack),
+                         "{\"status\":\"rejected\",\"reason\":\"unknown_relay\"}");
+            }
+            mqttClient.publish(MQTT_STATUS_TOPIC, ack);
         }
     }
 }

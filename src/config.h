@@ -62,8 +62,7 @@
 // Set to 1 for serial-guided pH calibration (never returns), 0 for normal operation
 #define CALIBRATION_MODE 0
 
-// --- Water quality thresholds (Philippine National Standards) ---
-#define TURBIDITY_CLEAN_NTU  5.0f     // Max NTU for drinking water
+#define TURBIDITY_CLEAN_NTU  390.0f     // Max NTU for drinking water
 
 // --- Rain trigger (HL-83, inverted: low voltage = wet) ---
 #define RAIN_TRIGGER_THRESHOLD  0.5f    // Below this = rain detected
@@ -77,7 +76,7 @@
 // --- Treatment timing ---
 #define FLOAT_DEBOUNCE_MS    3000UL    // Float switch must be stable 3s
 #define FILTER_TIMEOUT_MS    120000UL  // Safety timeout for filtering (2 min)
-#define DISPENSE_RUN_MS      10000UL   // Pump 2 run time for dispensing
+#define DISPENSE_RUN_MS      120000UL   // Pump 2 run time for dispensing
 #define RETURN_TIMEOUT_MS    120000UL  // Safety cap for return fill (matches FILTER_TIMEOUT_MS)
 #define COOLDOWN_MS          10000UL   // Motor protection cooldown
 #define MAX_FILTER_CYCLES    3         // Max re-filter attempts before FAULT

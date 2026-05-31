@@ -27,6 +27,7 @@ static MABuffer ma_turb2 = {};
 // Sorted HIGH→LOW voltage. Higher voltage = clearer water.
 struct VoltNTU { float v; float ntu; };
 
+/*
 static const VoltNTU TURB_TABLE[] = {
     { 4.20f,    0.0f },
     { 4.00f,   50.0f },
@@ -38,6 +39,19 @@ static const VoltNTU TURB_TABLE[] = {
     { 2.00f, 1000.0f },
     { 0.00f, 1000.0f }   // clamp floor
 };
+*/
+
+// I set this myself, not AI
+static const VoltNTU TURB_TABLE[] = {
+    { 4.10f,    0.0f },
+    { 3.70f,  100.0f },
+    { 3.60f,  200.0f },
+    { 3.40f,  400.0f },
+    { 2.50f,  800.0f },
+    { 2.00f, 1200.0f },
+    { 0.00f, 2000.0f }
+};
+
 static const int TURB_TABLE_SIZE = (int)(sizeof(TURB_TABLE) / sizeof(TURB_TABLE[0]));
 
 // --- Helpers ---
@@ -53,7 +67,7 @@ static float push_moving_average(float v, MABuffer &ma) {
 
 static float voltage_to_ntu(float v) {
     if (v >= TURB_TABLE[0].v) return 0.0f;
-    if (v <= TURB_TABLE[TURB_TABLE_SIZE - 1].v) return 1000.0f;
+    if (v <= TURB_TABLE[TURB_TABLE_SIZE - 1].v) return TURB_TABLE[TURB_TABLE_SIZE - 1].ntu;
 
     for (int i = 0; i < TURB_TABLE_SIZE - 1; i++) {
         if (v <= TURB_TABLE[i].v && v > TURB_TABLE[i + 1].v) {
@@ -65,7 +79,7 @@ static float voltage_to_ntu(float v) {
             return nLo + t * (nHi - nLo);
         }
     }
-    return 1000.0f; // fallback
+    return TURB_TABLE[TURB_TABLE_SIZE - 1].ntu; // fallback
 }
 
 // Read median voltage from ADS1115 channel (21-sample, odd window)
@@ -120,10 +134,11 @@ static float read_turbidity(uint8_t channel, MABuffer &ma, const char *label) {
 
 #if DEBUG_SENSORS
     const char *note = "";
-    if (med_v < 0.01f)       note = " (WARNING: 0V — check wiring)";
-    else if (med_v > 4.1f)   note = " (CLEAR — voltage above 4.1V threshold)";
-    else if (med_v > 3.3f && med_v < 3.7f) note = " (WARNING: possible VDD clamping)";
-    else if (med_v < 2.0f)   note = " (OPAQUE — max turbidity range)";
+    if      (med_v < 0.01f)  note = " (WARNING: 0V — check wiring)";
+    else if (med_v >= 3.40f) note = " (CLEAR — < 400 NTU)";
+    else if (med_v >= 2.50f) note = " (MODERATE — 400-800 NTU)";
+    else if (med_v >= 2.00f) note = " (TURBID — 800-1200 NTU)";
+    else                     note = " (OPAQUE — > 1200 NTU)";
     Serial.printf("[%s] med=%.3fV  ma=%.3fV  ntu=%.1f%s\n", label, med_v, ma_v, ntu, note);
 #endif
 
