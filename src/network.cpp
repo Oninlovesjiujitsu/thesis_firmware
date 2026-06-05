@@ -117,7 +117,6 @@ static bool connect_mqtt() {
 }
 
 void network_init() {
-    // Load TLS certificates
     tlsClient.setCACert(AWS_CERT_CA);
     tlsClient.setCertificate(AWS_CERT_CRT);
     tlsClient.setPrivateKey(AWS_CERT_PRIVATE);
@@ -125,12 +124,10 @@ void network_init() {
     mqttClient.setServer(AWS_IOT_ENDPOINT, MQTT_PORT);
     mqttClient.setCallback(mqtt_callback);
 
-    // Connect WiFi (blocking on first boot is acceptable)
     while (!connect_wifi()) {
         delay(1000);
     }
 
-    // NTP must succeed before any TLS handshake
     sync_ntp();
 }
 

@@ -3,19 +3,10 @@
 #include "actuator.h"
 #include "treatment.h"
 
-// ---------------------------------------------------------------------------
-// Relay shadow — tracks logical state independent of GPIO read
-// ---------------------------------------------------------------------------
-
 static bool s_relay_on[RI_COUNT] = {false};
 
-// ---------------------------------------------------------------------------
-// Static helpers
-// ---------------------------------------------------------------------------
 
 static void init_relay_pin(int pin, const char *label) {
-    // Pre-load HIGH before setting OUTPUT to prevent active-low relay
-    // from briefly energizing during the hi-Z → driven transition.
     digitalWrite(pin, HIGH);
     pinMode(pin, OUTPUT);
     Serial.printf("[ACTUATOR] %s (GPIO %d) init — OFF\n", label, pin);
@@ -23,14 +14,9 @@ static void init_relay_pin(int pin, const char *label) {
 
 static void relay_set(int pin, bool on, const char *label, RelayIdx idx) {
     s_relay_on[idx] = on;
-    // Active-low: LOW = relay ON, HIGH = relay OFF
     digitalWrite(pin, on ? LOW : HIGH);
     Serial.printf("[ACTUATOR] %s %s\n", label, on ? "ON" : "OFF");
 }
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 void actuator_init_all() {
     init_relay_pin(PUMP1_PIN,     "Pump1");
@@ -94,7 +80,6 @@ CmdResult actuator_handle_command(const char *payload, unsigned int length,
         bool on = strstr(payload, "\"ON\"") != NULL;
         strncpy(action_out, on ? "ON" : "OFF", 8);
 
-        // Identify relay first — needed for ACK in both OK and REJECTED cases
         if      (strstr(payload, "\"PUMP1\"")) strncpy(relay_out, "PUMP1", 8);
         else if (strstr(payload, "\"PUMP2\"")) strncpy(relay_out, "PUMP2", 8);
         else if (strstr(payload, "\"SOL1\""))  strncpy(relay_out, "SOL1",  8);
@@ -108,7 +93,6 @@ CmdResult actuator_handle_command(const char *payload, unsigned int length,
             return CMD_UNKNOWN_RELAY;
         }
 
-        // Manual relay commands only allowed when treatment is IDLE
         if (treatment_get_state() != TS_IDLE) {
             Serial.println("[ACTUATOR] Manual command rejected — treatment active");
             return CMD_REJECTED_BUSY;

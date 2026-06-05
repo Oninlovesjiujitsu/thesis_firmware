@@ -16,18 +16,16 @@ enum TreatmentState : uint8_t {
 };
 
 void treatment_init();
-void treatment_tick();   // Non-blocking, call every loop iteration
+void treatment_tick();   
 
 TreatmentState treatment_get_state();
 const char    *treatment_state_name();
 
-// Readings captured during treatment cycle (for telemetry)
-float   treatment_last_turbidity2();  // Turb2 at TURB_CHECK
+float   treatment_last_turbidity2();  
 uint8_t treatment_filter_cycles();
 
-// MQTT-driven controls
 void treatment_pause();
 void treatment_resume();
 void treatment_reset();
 
-#endif // TREATMENT_H
+#endif 

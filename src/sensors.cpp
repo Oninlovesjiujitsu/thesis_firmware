@@ -7,7 +7,6 @@
 static Adafruit_ADS1115 ads;
 static bool ads_ok = false;
 
-// --- pH calibration (computed once in sensors_init) ---
 static float ph_slope  = 0.0f;
 static float ph_offset = 0.0f;
 
@@ -23,25 +22,9 @@ static MABuffer ma_ph    = {};
 static MABuffer ma_turb1 = {};
 static MABuffer ma_turb2 = {};
 
-// --- Piecewise turbidity lookup table (DFRobot SEN0189 datasheet) ---
-// Sorted HIGH→LOW voltage. Higher voltage = clearer water.
 struct VoltNTU { float v; float ntu; };
 
-/*
-static const VoltNTU TURB_TABLE[] = {
-    { 4.20f,    0.0f },
-    { 4.00f,   50.0f },
-    { 3.80f,  100.0f },
-    { 3.60f,  200.0f },
-    { 3.40f,  400.0f },
-    { 3.00f,  600.0f },
-    { 2.50f,  800.0f },
-    { 2.00f, 1000.0f },
-    { 0.00f, 1000.0f }   // clamp floor
-};
-*/
 
-// I set this myself, not AI
 static const VoltNTU TURB_TABLE[] = {
     { 4.10f,    0.0f },
     { 3.70f,  100.0f },
@@ -54,7 +37,6 @@ static const VoltNTU TURB_TABLE[] = {
 
 static const int TURB_TABLE_SIZE = (int)(sizeof(TURB_TABLE) / sizeof(TURB_TABLE[0]));
 
-// --- Helpers ---
 
 static float push_moving_average(float v, MABuffer &ma) {
     ma.sum    -= ma.buf[ma.idx];
@@ -75,14 +57,13 @@ static float voltage_to_ntu(float v) {
             float vLo = TURB_TABLE[i + 1].v;
             float nHi = TURB_TABLE[i].ntu;
             float nLo = TURB_TABLE[i + 1].ntu;
-            float t   = (v - vLo) / (vHi - vLo);   // 0..1
+            float t   = (v - vLo) / (vHi - vLo);   
             return nLo + t * (nHi - nLo);
         }
     }
-    return TURB_TABLE[TURB_TABLE_SIZE - 1].ntu; // fallback
+    return TURB_TABLE[TURB_TABLE_SIZE - 1].ntu; 
 }
 
-// Read median voltage from ADS1115 channel (21-sample, odd window)
 static float read_median_voltage(uint8_t channel) {
     if (!ads_ok) return 0.0f;
 
@@ -92,7 +73,6 @@ static float read_median_voltage(uint8_t channel) {
         delay(SENSOR_SAMPLE_DELAY_MS);
     }
 
-    // Insertion sort — 21 elements, trivial cost
     for (int i = 1; i < MEDIAN_WINDOW; i++) {
         int16_t key = samples[i];
         int j = i - 1;
@@ -108,7 +88,6 @@ static float read_median_voltage(uint8_t channel) {
     return ads.computeVolts(med);
 }
 
-// Read averaged voltage (kept for rain sensor)
 static float read_averaged_voltage(uint8_t channel, int samples, int *raw_out = nullptr) {
     if (!ads_ok) {
         if (raw_out) *raw_out = 0;
@@ -126,7 +105,6 @@ static float read_averaged_voltage(uint8_t channel, int samples, int *raw_out = 
     return ads.computeVolts((int16_t)avg_raw);
 }
 
-// Shared turbidity read: median → moving average → piecewise interpolation
 static float read_turbidity(uint8_t channel, MABuffer &ma, const char *label) {
     float med_v = read_median_voltage(channel);
     float ma_v  = push_moving_average(med_v, ma);
@@ -145,7 +123,6 @@ static float read_turbidity(uint8_t channel, MABuffer &ma, const char *label) {
     return ntu;
 }
 
-// --- Calibration mode (gated behind CALIBRATION_MODE) ---
 #if CALIBRATION_MODE
 
 static float wait_for_stable_reading(const char *label) {
@@ -204,18 +181,16 @@ static void run_calibration() {
     Serial.println("  Paste into config.h, set CALIBRATION_MODE 0, re-flash.");
     Serial.println("=================================================");
 
-    while (true) delay(1000);  // halt — user must re-flash
+    while (true) delay(1000); 
 }
 
-#endif // CALIBRATION_MODE
-
-// --- Public API ---
+#endif 
 
 void sensors_init() {
     Wire.begin(I2C_SDA, I2C_SCL);
 
     if (ads.begin(ADS1115_ADDR, &Wire)) {
-        ads.setGain(GAIN_TWOTHIRDS);  // ±6.144V, 0.1875mV/bit
+        ads.setGain(GAIN_TWOTHIRDS);  
         ads_ok = true;
         Serial.println("[SENSORS] ADS1115 initialized OK");
     } else {
@@ -225,15 +200,13 @@ void sensors_init() {
 
     pinMode(FLOAT_SWITCH_PIN, INPUT_PULLUP);
 
-    // Zero out MA buffers
     memset(&ma_ph,    0, sizeof(ma_ph));
     memset(&ma_turb1, 0, sizeof(ma_turb1));
     memset(&ma_turb2, 0, sizeof(ma_turb2));
 
 #if CALIBRATION_MODE
-    run_calibration();  // never returns
+    run_calibration();  
 #else
-    // Compute pH slope/offset from two-point calibration
     ph_slope  = 3.0f / (PH_CAL_V_PH7 - PH_CAL_V_PH4);
     ph_offset = 7.0f - ph_slope * PH_CAL_V_PH7;
 
@@ -301,7 +274,6 @@ float sensors_read_rain() {
 }
 
 bool sensors_read_float_switch() {
-    // INPUT_PULLUP: LOW = switch closed = water present
     return digitalRead(FLOAT_SWITCH_PIN) == LOW;
 }
 

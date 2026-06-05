@@ -3,10 +3,10 @@
 
 void  sensors_init();
 float sensors_read_ph();
-float sensors_read_turbidity1();   // Tank 1
-float sensors_read_turbidity2();   // Tank 2 (post-filtration)
-float sensors_read_rain();         // 0.0 = dry, 1.0 = wet
-bool  sensors_read_float_switch(); // true = water present
-bool  sensors_adc_ok();            // true = ADS1115 responded at init
+float sensors_read_turbidity1();   
+float sensors_read_turbidity2();   
+float sensors_read_rain();        
+bool  sensors_read_float_switch(); 
+bool  sensors_adc_ok();            
 
-#endif // SENSORS_H
+#endif 

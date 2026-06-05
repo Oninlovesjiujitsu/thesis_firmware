@@ -16,18 +16,15 @@ enum RelayIdx {
     RI_COUNT
 };
 
-// Result codes from actuator_handle_command()
 enum CmdResult {
-    CMD_NONE = 0,       // No recognized command — caller should not ACK
-    CMD_OK,             // Command executed
-    CMD_REJECTED_BUSY,  // Relay command rejected — treatment not IDLE
-    CMD_UNKNOWN_RELAY   // ON/OFF parsed but relay name unrecognized
+    CMD_NONE = 0,       
+    CMD_OK,        
+    CMD_REJECTED_BUSY,  
+    CMD_UNKNOWN_RELAY  
 };
 
-// Initialize all relay pins (pre-drive HIGH pattern for active-low safety)
 void actuator_init_all();
 
-// Named actuator controls — true = energized/open, false = off/closed
 void pump1_set(bool on);
 void pump2_set(bool on);
 void dose_acid_set(bool on);
@@ -40,16 +37,9 @@ void sol4_set(bool open);
 // Safety: all actuators OFF immediately
 void actuator_all_off();
 
-// Shadow state — true = currently energized. idx must be < RI_COUNT.
 bool actuator_relay_state(uint8_t idx);
 
-// MQTT command handler (PAUSE/RESUME/RESET + manual relay ON/OFF when IDLE).
-// relay_out  : caller buffer >= 8 bytes; filled with relay name, or "" for
-//              PAUSE/RESUME/RESET commands.
-// action_out : caller buffer >= 8 bytes; filled with "PAUSE", "RESUME",
-//              "RESET", "ON", or "OFF".
-// Returns CmdResult — publish ACK only when result != CMD_NONE.
 CmdResult actuator_handle_command(const char *payload, unsigned int length,
                                    char *relay_out, char *action_out);
 
-#endif // ACTUATOR_H
+#endif 

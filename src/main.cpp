@@ -10,7 +10,7 @@ static unsigned long lastPublish = 0;
 
 void setup() {
     Serial.begin(115200);
-    actuator_init_all();   // First — minimize relay float window
+    actuator_init_all();   
     sensors_init();
     treatment_init();
 #if !SERIAL_ONLY_MODE
@@ -23,7 +23,7 @@ void loop() {
     network_mqtt_loop();
 #endif
 
-    treatment_tick();  // Non-blocking — runs every iteration
+    treatment_tick();  
 
     unsigned long now = millis();
     if (now - lastPublish >= PUBLISH_INTERVAL_MS) {

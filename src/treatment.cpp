@@ -4,9 +4,6 @@
 #include "actuator.h"
 #include "sensors.h"
 
-// ---------------------------------------------------------------------------
-// State names in PROGMEM
-// ---------------------------------------------------------------------------
 static const char S_IDLE[]       PROGMEM = "IDLE";
 static const char S_FIRST_FLUSH[] PROGMEM = "FIRST_FLUSH";
 static const char S_COLLECTING[] PROGMEM = "COLLECTING";
@@ -22,27 +19,21 @@ static const char * const STATE_NAMES[] PROGMEM = {
     S_TURB_CHECK, S_DISPENSING, S_RETURNING, S_COOLDOWN
 };
 
-// ---------------------------------------------------------------------------
-// Internal state
-// ---------------------------------------------------------------------------
 static TreatmentState state      = TS_IDLE;
 static unsigned long  stateEntry = 0;
 static bool           paused     = false;
 
-// Debounce (shared between rain and float switch)
+static unsigned long dosePhaseStart  = 0;   
+static unsigned long dosePulseTimer  = 0;   
+static bool          dosePulseOn     = false;
+
 static unsigned long debounceStart  = 0;
 static bool          debounceActive = false;
 
-// Rain read throttle
 static unsigned long lastRainCheck = 0;
 
-// Cycle data (retained for telemetry between cycles)
 static float   lastTurb2      = 0.0f;
 static uint8_t filterCycles   = 0;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 static void enter_state(TreatmentState next) {
     Serial.printf("[TREATMENT] %s -> %s\n", STATE_NAMES[state], STATE_NAMES[next]);
@@ -50,12 +41,8 @@ static void enter_state(TreatmentState next) {
     stateEntry = millis();
 }
 
-// ---------------------------------------------------------------------------
-// State handlers
-// ---------------------------------------------------------------------------
 
 static void tick_idle(unsigned long now) {
-    // Throttle rain sensor reads to 1/s
     if (now - lastRainCheck < RAIN_CHECK_INTERVAL_MS) return;
     lastRainCheck = now;
 
@@ -94,10 +81,15 @@ static void tick_collecting(unsigned long now) {
             debounceStart  = now;
         } else if (now - debounceStart >= FLOAT_DEBOUNCE_MS) {
             debounceActive = false;
-            filterCycles = 0;
-            Serial.println("[TREATMENT] Tank1 full — dosing base");
-            sol1_set(true);        // Divert rain away from tank1 during treatment
-            dose_base_set(true);
+            filterCycles   = 0;
+
+            dosePhaseStart = now;
+            dosePulseTimer = now;
+            dosePulseOn    = true;
+
+            Serial.println("[TREATMENT] Tank1 full — dosing base (pH-controlled)");
+            sol1_set(true);        
+            dose_base_set(true); 
             enter_state(TS_DOSING);
         }
     } else {
@@ -106,12 +98,49 @@ static void tick_collecting(unsigned long now) {
 }
 
 static void tick_dosing(unsigned long now) {
-    if (now - stateEntry >= DOSE_BASE_FIXED_MS) {
+    if (now - dosePhaseStart >= DOSE_MAX_DURATION_MS) {
         dose_base_set(false);
-        Serial.println("[TREATMENT] Dose done — filtering");
+        Serial.println("[TREATMENT] Dose timeout (safety cap) — filtering");
         sol2_set(true);
         pump1_set(true);
         enter_state(TS_FILTERING);
+        return;
+    }
+
+    float ph = sensors_read_ph();
+
+    if (ph >= PH_TARGET_MIN && ph <= PH_TARGET_MAX) {
+        dose_base_set(false);
+        Serial.printf("[TREATMENT] pH %.2f in range — filtering\n", ph);
+        sol2_set(true);
+        pump1_set(true);
+        enter_state(TS_FILTERING);
+        return;
+    }
+
+    if (ph > PH_TARGET_MAX) {
+        dose_base_set(false);
+        Serial.printf("[TREATMENT] pH %.2f too high, no acid pump — filtering anyway\n", ph);
+        sol2_set(true);
+        pump1_set(true);
+        enter_state(TS_FILTERING);
+        return;
+    }
+
+    if (dosePulseOn) {
+        if (now - dosePulseTimer >= DOSE_PULSE_ON_MS) {
+            dose_base_set(false);
+            dosePulseOn    = false;
+            dosePulseTimer = now;
+            Serial.printf("[TREATMENT] Dose pulse OFF — pH %.2f, mixing...\n", ph);
+        }
+    } else {
+        if (now - dosePulseTimer >= DOSE_PULSE_OFF_MS) {
+            dose_base_set(true);
+            dosePulseOn    = true;
+            dosePulseTimer = now;
+            Serial.printf("[TREATMENT] Dose pulse ON — pH %.2f\n", ph);
+        }
     }
 }
 
@@ -144,10 +173,14 @@ static void tick_turb_check() {
         sol3_set(true);
         pump2_set(true);
         enter_state(TS_DISPENSING);
+    } else if (filterCycles >= MAX_FILTER_CYCLES) {        
+        Serial.println("[TREATMENT] Max filter cycles hit — dispensing anyway"); 
+        sol3_set(true);                                   
+        pump2_set(true);                                  
+        enter_state(TS_DISPENSING);                        
     } else {
         filterCycles++;
-        Serial.printf("[TREATMENT] Turbid — returning for re-filter (cycle %u)\n",
-                      filterCycles);
+        Serial.printf("[TREATMENT] Turbid — returning for re-filter (cycle %u)\n", filterCycles);
         sol4_set(true);
         pump2_set(true);
         enter_state(TS_RETURNING);
@@ -204,15 +237,14 @@ static void tick_cooldown(unsigned long now) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
 void treatment_init() {
-    state        = TS_IDLE;
-    stateEntry   = millis();
-    paused       = false;
-    filterCycles = 0;
+    state          = TS_IDLE;
+    stateEntry     = millis();
+    paused         = false;
+    filterCycles   = 0;
+    dosePhaseStart = 0;   
+    dosePulseTimer = 0;   
+    dosePulseOn    = false; 
     Serial.println("[TREATMENT] Init — IDLE");
 }
 
