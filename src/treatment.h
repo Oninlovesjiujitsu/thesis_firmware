@@ -28,4 +28,6 @@ void treatment_pause();
 void treatment_resume();
 void treatment_reset();
 
+void treatment_set_pid(double kp, double ki, double kd, double setpoint);
+
 #endif 

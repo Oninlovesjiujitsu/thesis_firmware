@@ -1,10 +1,12 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
+#include <ArduinoJson.h>
 #include "config.h"
 #include "secrets.h"
 #include "network.h"
 #include "actuator.h"
+#include "treatment.h"
 
 static WiFiClientSecure tlsClient;
 static PubSubClient mqttClient(tlsClient);
@@ -20,9 +22,27 @@ static void mqtt_callback(char *topic, byte *payload, unsigned int length) {
     buf[copyLen] = '\0';
 
     if (strcmp(topic, MQTT_COMMAND_TOPIC) == 0) {
+        StaticJsonDocument<256> doc;
+        DeserializationError err = deserializeJson(doc, buf);
+
+        if (!err && doc["action"] == "SET_PID") {
+            double kp = doc["kp"] | 2.0;
+            double ki = doc["ki"] | 0.5;
+            double kd = doc["kd"] | 0.1;
+            double setpoint = doc["setpoint"] | 7.0;
+            
+            treatment_set_pid(kp, ki, kd, setpoint);
+            
+            char ack[128];
+            snprintf(ack, sizeof(ack), "{\"status\":\"ok\",\"action\":\"SET_PID\",\"kp\":%.2f,\"ki\":%.2f,\"kd\":%.2f,\"sp\":%.2f}", kp, ki, kd, setpoint);
+            mqttClient.publish(MQTT_STATUS_TOPIC, ack);
+            return;
+        }
+
         char relay_out[8];
         char action_out[8];
         CmdResult res = actuator_handle_command(buf, copyLen, relay_out, action_out);
+
 
         if (res != CMD_NONE) {
             char ack[96];

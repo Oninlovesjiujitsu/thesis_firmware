@@ -3,6 +3,20 @@
 #include "treatment.h"
 #include "actuator.h"
 #include "sensors.h"
+#include <PID_v1.h>
+
+static double pidSetpoint = 7.0;
+static double pidFakeInput = 7.0;
+static double pidOutput = 0.0;
+
+static double pidKp = 2.0;
+static double pidKi = 0.5;
+static double pidKd = 0.1;
+
+static PID phPID(&pidFakeInput, &pidOutput, &pidSetpoint, pidKp, pidKi, pidKd, DIRECT);
+
+static const unsigned long WindowSize = 5000; 
+static unsigned long windowStartTime = 0;
 
 static const char S_IDLE[]       PROGMEM = "IDLE";
 static const char S_FIRST_FLUSH[] PROGMEM = "FIRST_FLUSH";
@@ -86,10 +100,12 @@ static void tick_collecting(unsigned long now) {
             dosePhaseStart = now;
             dosePulseTimer = now;
             dosePulseOn    = true;
+            windowStartTime = now;
+            phPID.SetOutputLimits(0, WindowSize);
+            phPID.SetMode(AUTOMATIC);
 
-            Serial.println("[TREATMENT] Tank1 full — dosing base (pH-controlled)");
+            Serial.println("[TREATMENT] Tank1 full — dosing (PID-controlled)");
             sol1_set(true);        
-            dose_base_set(true); 
             enter_state(TS_DOSING);
         }
     } else {
@@ -100,6 +116,7 @@ static void tick_collecting(unsigned long now) {
 static void tick_dosing(unsigned long now) {
     if (now - dosePhaseStart >= DOSE_MAX_DURATION_MS) {
         dose_base_set(false);
+        dose_acid_set(false);
         Serial.println("[TREATMENT] Dose timeout (safety cap) — filtering");
         sol2_set(true);
         pump1_set(true);
@@ -111,6 +128,7 @@ static void tick_dosing(unsigned long now) {
 
     if (ph >= PH_TARGET_MIN && ph <= PH_TARGET_MAX) {
         dose_base_set(false);
+        dose_acid_set(false);
         Serial.printf("[TREATMENT] pH %.2f in range — filtering\n", ph);
         sol2_set(true);
         pump1_set(true);
@@ -118,29 +136,29 @@ static void tick_dosing(unsigned long now) {
         return;
     }
 
-    if (ph > PH_TARGET_MAX) {
-        dose_base_set(false);
-        Serial.printf("[TREATMENT] pH %.2f too high, no acid pump — filtering anyway\n", ph);
-        sol2_set(true);
-        pump1_set(true);
-        enter_state(TS_FILTERING);
-        return;
+    double error = pidSetpoint - ph;
+    bool needsBase = (error > 0);
+    
+    // Fake the input so PID always treats it as DIRECT action
+    pidFakeInput = pidSetpoint - abs(error);
+    phPID.Compute();
+
+    // Time proportional control
+    if (now - windowStartTime >= WindowSize) {
+        windowStartTime += WindowSize;
     }
 
-    if (dosePulseOn) {
-        if (now - dosePulseTimer >= DOSE_PULSE_ON_MS) {
+    if (pidOutput > (now - windowStartTime)) {
+        if (needsBase) {
+            dose_base_set(true);
+            dose_acid_set(false);
+        } else {
+            dose_acid_set(true);
             dose_base_set(false);
-            dosePulseOn    = false;
-            dosePulseTimer = now;
-            Serial.printf("[TREATMENT] Dose pulse OFF — pH %.2f, mixing...\n", ph);
         }
     } else {
-        if (now - dosePulseTimer >= DOSE_PULSE_OFF_MS) {
-            dose_base_set(true);
-            dosePulseOn    = true;
-            dosePulseTimer = now;
-            Serial.printf("[TREATMENT] Dose pulse ON — pH %.2f\n", ph);
-        }
+        dose_base_set(false);
+        dose_acid_set(false);
     }
 }
 
@@ -301,4 +319,13 @@ void treatment_reset() {
     filterCycles = 0;
     enter_state(TS_IDLE);
     Serial.println("[TREATMENT] RESET — IDLE");
+}
+
+void treatment_set_pid(double kp, double ki, double kd, double setpoint) {
+    pidKp = kp;
+    pidKi = ki;
+    pidKd = kd;
+    pidSetpoint = setpoint;
+    phPID.SetTunings(pidKp, pidKi, pidKd);
+    Serial.printf("[TREATMENT] PID Updated: Kp=%.2f Ki=%.2f Kd=%.2f SP=%.2f\n", kp, ki, kd, setpoint);
 }
