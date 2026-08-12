@@ -4,6 +4,9 @@
 >
 > An intelligent, autonomous water treatment system designed to harvest, treat, and dispense rainwater for sustainable household use.
 
+> [!NOTE]
+> This repository contains the **C++ firmware** for the ESP32. As this project is not a monorepo, the companion React Native mobile app codebase can be found here: [emblematic-mobile](https://github.com/Oninlovesjiujitsu/emblematic-mobile).
+
 ---
 
 ## Technologies
